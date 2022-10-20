@@ -1,0 +1,126 @@
+---
+title: "Assignment"
+author: "Berj Dekramanjian"
+date: "2022-10-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Practical Machine Learning Assignment
+
+ The goal of this markdown will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants to predict the manner in which they did the exercise. The report describes how the model was built, how it was cross validated, and why you different choices were made. 
+
+```{r packages}
+library(rpart)
+library(rpart.plot)
+library(lattice)
+library(ggplot2)
+library(corrplot)
+library(randomForest)
+library(rattle)
+library(tidyverse)
+```
+
+Eight different packages are loaded
+
+```{r data}
+data_train <- read.csv("pml-training.csv")[,-1]
+data_quiz <- read.csv("pml-testing.csv")[,-1]
+dim(data_train)
+dim(data_quiz)
+```
+Both sets of data were loaded, and the dimensions of the training and testing data checked.
+```{r clean}
+NZV <- nearZeroVar(data_train)
+data_train <- data_train[, -NZV]
+data_quiz <- data_quiz[, -NZV]
+
+NaValues <- sapply(data_train, function(x) mean(is.na(x))) > 0.9
+data_train <- data_train[, NaValues == "FALSE"]
+data_quiz <- data_quiz[, NaValues == "FALSE"]
+
+data_train <- data_train[,-c(1:5)]
+data_quiz <- data_quiz[,-c(1:5)]
+
+dim(data_train)
+dim(data_quiz)
+```
+The data was cleaned by:
+-first removing any predictors that have missin or non-unique values
+-then removing any cases that have missing values
+-then the id and time variables were removed
+-finaly the dimensions of the datasets was checked again
+
+```{r partition}
+in_train  <- createDataPartition(data_train$classe, p=0.75, list=FALSE)
+train_set <- data_train[ in_train, ]
+test_set  <- data_train[-in_train, ]
+
+dim(train_set)
+dim(test_set)
+```
+
+test data was partitioned for further analysis
+
+```{r correlation}
+train_set %>% mutate_at(c(2:52),as.numeric)
+corr_matrix <- cor(train_set[ ,-53])
+corrplot(corr_matrix, order = "FPC", method = "circle", type = "lower",
+         tl.cex = 0.6, tl.col = rgb(0, 0, 0))
+```
+Since there aren't that many variables that are correlated, it seems multiple prediction models might be needed. first off with a decision tree.
+```{r Decision Tree}
+fit_decision_tree <- rpart(classe ~ ., data = train_set, method="class")
+fancyRpartPlot(fit_decision_tree)
+
+predict_decision_tree <- predict(fit_decision_tree, newdata = test_set, type="class")
+conf_matrix_decision_tree <- confusionMatrix(predict_decision_tree, factor(test_set$classe))
+conf_matrix_decision_tree
+
+plot(conf_matrix_decision_tree$table, col = conf_matrix_decision_tree$byClass, 
+     main = paste("Decision Tree Model: Predictive Accuracy =",
+                  round(conf_matrix_decision_tree$overall['Accuracy'], 4)))
+
+```
+The decision trees predictive accuracey was relatively low at 73.5 percent. next up we try the generalized boosted model.
+
+
+```{r GBM}
+ctrl_GBM <- trainControl(method = "repeatedcv", number = 5, repeats = 2)
+fit_GBM  <- train(classe ~ ., data = train_set, method = "gbm",
+                  trControl = ctrl_GBM, verbose = FALSE)
+fit_GBM$finalModel
+
+predict_GBM <- predict(fit_GBM, newdata = test_set)
+conf_matrix_GBM <- confusionMatrix(predict_GBM, factor(test_set$classe))
+conf_matrix_GBM
+```
+
+GBM did quite well with a better accuracy of 96.6 percent
+
+Lastly we do a random forest model
+
+```{r random forest}
+ctrl_RF <- trainControl(method = "repeatedcv", number = 5, repeats = 2)
+fit_RF  <- train(classe ~ ., data = train_set, method = "rf",
+                  trControl = ctrl_RF, verbose = FALSE)
+fit_RF$finalModel
+
+predict_RF <- predict(fit_RF, newdata = test_set)
+conf_matrix_RF <- confusionMatrix(predict_RF, factor(test_set$classe))
+conf_matrix_RF
+```
+
+Predictive accuracy of the Random Forest model is even better at 99.4 percent
+
+we are going to go ahead and use the random forest model for our predicitons for the quiz.
+
+```{r quiz}
+
+predict_quiz <- as.data.frame(predict(fit_RF, newdata = data_quiz))
+predict_quiz
+
+```
