@@ -2,7 +2,9 @@
 title: "Assignment"
 author: "Berj Dekramanjian"
 date: "2022-10-19"
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -11,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Practical Machine Learning Assignment
 
- The goal of this markdown will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants to predict the manner in which they did the exercise. The report describes how the model was built, how it was cross validated, and why you different choices were made. 
+ The goal of this markdown will be to use data from accelerators on the belt, forearm, arm, and dumbbell of 6 participants to predict the manner in which they did the exercise. The report describes how the model was built, how it was cross validated, and why you different choices were made. 
 
 ```{r packages}
 library(rpart)
@@ -22,9 +24,10 @@ library(corrplot)
 library(randomForest)
 library(rattle)
 library(tidyverse)
+library(caret)
 ```
 
-Eight different packages are loaded
+Nine different packages are loaded
 
 ```{r data}
 data_train <- read.csv("pml-training.csv")[,-1]
@@ -64,9 +67,12 @@ dim(test_set)
 ```
 
 test data was partitioned for further analysis
+```{r ss,  include=FALSE}
+train_set %>% mutate_at(c(2:52),as.numeric)
+```
 
 ```{r correlation}
-train_set %>% mutate_at(c(2:52),as.numeric)
+
 corr_matrix <- cor(train_set[ ,-53])
 corrplot(corr_matrix, order = "FPC", method = "circle", type = "lower",
          tl.cex = 0.6, tl.col = rgb(0, 0, 0))
